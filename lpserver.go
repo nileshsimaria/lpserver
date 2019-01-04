@@ -45,16 +45,18 @@ func processData(db string, p string, rp string, consistency string, data []byte
 
 	if points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), p); err == nil {
 		for _, point := range points {
-			name := point.Name()
-			fmt.Println(string(name))
+			state.file.WriteString("TAGS: [")
 			tags := point.Tags()
 			for i, tag := range tags {
 				state.file.WriteString(fmt.Sprintf("%d [%s = %s]\n", i, tag.Key, tag.Value))
 			}
+			state.file.WriteString("]\n")
+			state.file.WriteString("FIELDS: [")
 			if fields, err := point.Fields(); err == nil {
 				for k := range fields {
 					state.file.WriteString(fmt.Sprintf("[%s=%s]\n", k, fields[k]))
 				}
+				state.file.WriteString("]\n")
 			} else {
 				return err
 			}
