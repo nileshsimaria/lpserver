@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/influxdata/influxdb/models"
 )
 
 // LPServer is Line Protocol Server
@@ -35,28 +37,32 @@ type lpData struct {
 var state *lpData
 
 func processData(db string, p string, rp string, consistency string, data []byte) error {
-	fmt.Printf("db: %s\n", db)
-	/*
-		if points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), p); err == nil {
-			for _, point := range points {
-				name := point.Name()
-				fmt.Println(string(name))
-				tags := point.Tags()
-				for i, tag := range tags {
-					fmt.Printf("%d [%s = %s]\n", i, tag.Key, tag.Value)
-				}
-				if fields, err := point.Fields(); err == nil {
-					for k := range fields {
-						fmt.Printf("[%s=%s]\n", k, fields[k])
-					}
-				} else {
-					return err
-				}
+	state.Lock()
+	defer state.Unlock()
+	if state.name == "" {
+		return fmt.Errorf("store is not ready")
+	}
+
+	if points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), p); err == nil {
+		for _, point := range points {
+			name := point.Name()
+			fmt.Println(string(name))
+			tags := point.Tags()
+			for i, tag := range tags {
+				state.file.WriteString(fmt.Sprintf("%d [%s = %s]\n", i, tag.Key, tag.Value))
 			}
-		} else {
-			return err
+			if fields, err := point.Fields(); err == nil {
+				for k := range fields {
+					state.file.WriteString(fmt.Sprintf("[%s=%s]\n", k, fields[k]))
+				}
+			} else {
+				return err
+			}
 		}
-	*/
+	} else {
+		return err
+	}
+
 	return nil
 }
 
@@ -73,7 +79,9 @@ func writeHandler(w http.ResponseWriter, r *http.Request) {
 	rp := r.FormValue("rp")
 	consistency := r.FormValue("consistency")
 
-	processData(db, p, rp, consistency, data)
+	if err := processData(db, p, rp, consistency, data); err != nil {
+		log.Printf("%v", err)
+	}
 }
 
 func queryHandler(w http.ResponseWriter, r *http.Request) {
