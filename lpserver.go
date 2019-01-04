@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -45,15 +46,20 @@ func processData(db string, p string, rp string, consistency string, data []byte
 
 	if points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), p); err == nil {
 		for _, point := range points {
-			state.file.WriteString("TAGS: [")
+			state.file.WriteString("TAGS: [\n")
 			tags := point.Tags()
 			for i, tag := range tags {
 				state.file.WriteString(fmt.Sprintf("%d [%s = %s]\n", i, tag.Key, tag.Value))
 			}
 			state.file.WriteString("]\n")
-			state.file.WriteString("FIELDS: [")
+			state.file.WriteString("FIELDS: [\n")
 			if fields, err := point.Fields(); err == nil {
+				var keys []string
 				for k := range fields {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
 					state.file.WriteString(fmt.Sprintf("[%s=%s]\n", k, fields[k]))
 				}
 				state.file.WriteString("]\n")
